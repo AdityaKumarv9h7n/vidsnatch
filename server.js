@@ -12,128 +12,168 @@ app.use(express.static(path.join(__dirname, 'public')));
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR);
 
-// Serve downloads
 app.use('/downloads', express.static(DOWNLOAD_DIR));
 
-// Detect platform from URL
 function detectPlatform(url) {
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
   if (url.includes('facebook.com') || url.includes('fb.watch') || url.includes('fb.com')) return 'facebook';
   if (url.includes('instagram.com')) return 'instagram';
+  if (url.includes('tiktok.com')) return 'tiktok';
+  if (url.includes('twitter.com') || url.includes('x.com')) return 'twitter';
+  if (url.includes('vimeo.com')) return 'vimeo';
   return 'other';
 }
 
-// Get video info
 app.post('/api/info', async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
+  const extraArgs = platform === 'youtube'
+    ? '--extractor-args "youtube:player_client=android,web"'
+    : '';
 
-  exec(`yt-dlp --dump-json --no-playlist "${url}"`, { timeout: 30000 }, (err, stdout, stderr) => {
+  const cmd = `yt-dlp --dump-json --no-playlist ${extraArgs} "${url}"`;
+
+  exec(cmd, { timeout: 45000 }, (err, stdout, stderr) => {
     if (err) {
-      return res.status(400).json({ error: 'Could not fetch video info. Make sure the URL is valid and the video is public.' });
-    }
-    try {
-      const info = JSON.parse(stdout);
-      const formats = (info.formats || [])
-        .filter(f => f.ext && (f.height || f.abr))
-        .map(f => ({
-          format_id: f.format_id,
-          ext: f.ext,
-          height: f.height || null,
-          abr: f.abr || null,
-          filesize: f.filesize || f.filesize_approx || null,
-          label: f.height ? `${f.height}p (${f.ext})` : `Audio ${f.abr}kbps (${f.ext})`
-        }))
-        .sort((a, b) => (b.height || 0) - (a.height || 0));
-
-      // Deduplicate by label
-      const seen = new Set();
-      const uniqueFormats = formats.filter(f => {
-        if (seen.has(f.label)) return false;
-        seen.add(f.label);
-        return true;
+      console.error('Info error:', stderr);
+      return res.status(400).json({
+        error: 'Could not fetch video info. The video may be private, age-restricted, or unavailable.'
       });
+    }
+
+    try {
+      const firstLine = stdout.trim().split('\n')[0];
+      const info = JSON.parse(firstLine);
+      const formats = (info.formats || []);
+
+      const resolutions = [2160, 1440, 1080, 720, 480, 360, 240, 144];
+      const smartFormats = [];
+
+      smartFormats.push({
+        format_id: 'best',
+        label: '⭐ Best Quality (Auto)',
+        ext: 'mp4',
+        filesize: null,
+        isAuto: true
+      });
+
+      resolutions.forEach(res => {
+        const videoFmt = formats
+          .filter(f => f.height === res && f.vcodec && f.vcodec !== 'none')
+          .sort((a, b) => (b.filesize || 0) - (a.filesize || 0))[0];
+
+        if (videoFmt) {
+          const size = videoFmt.filesize || videoFmt.filesize_approx;
+          smartFormats.push({
+            format_id: `${res}p`,
+            label: `${res}p`,
+            ext: 'mp4',
+            filesize: size,
+            height: res
+          });
+        }
+      });
+
+      const audioBest = formats
+        .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
+        .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+
+      if (audioBest) {
+        smartFormats.push({
+          format_id: 'audio',
+          label: '🎵 Audio Only (MP3)',
+          ext: 'mp3',
+          filesize: audioBest.filesize || null,
+          isAudio: true
+        });
+      }
 
       res.json({
         title: info.title,
         thumbnail: info.thumbnail,
         duration: info.duration,
-        uploader: info.uploader || info.channel,
+        uploader: info.uploader || info.channel || info.uploader_id,
         platform,
-        formats: uniqueFormats.slice(0, 10),
+        formats: smartFormats,
         webpage_url: info.webpage_url || url
       });
     } catch (e) {
+      console.error('Parse error:', e);
       res.status(500).json({ error: 'Failed to parse video info' });
     }
   });
 });
 
-// Download video
 app.post('/api/download', (req, res) => {
   const { url, format_id, title } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
+  const platform = detectPlatform(url);
   const safeTitle = (title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '_').substring(0, 60);
   const filename = `${safeTitle}_${Date.now()}`;
   const outputTemplate = path.join(DOWNLOAD_DIR, `${filename}.%(ext)s`);
 
-  const formatArg = format_id
-    ? ['-f', format_id]
-    : ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'];
+  let formatArg;
+
+  if (!format_id || format_id === 'best') {
+    formatArg = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'];
+  } else if (format_id === 'audio') {
+    formatArg = ['-f', 'bestaudio', '-x', '--audio-format', 'mp3'];
+  } else {
+    const height = format_id.replace('p', '');
+    formatArg = [
+      '-f',
+      `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`
+    ];
+  }
+
+  const extraArgs = platform === 'youtube'
+    ? ['--extractor-args', 'youtube:player_client=android,web']
+    : [];
 
   const args = [
     ...formatArg,
     '--merge-output-format', 'mp4',
     '--no-playlist',
+    ...extraArgs,
     '-o', outputTemplate,
     url
   ];
 
-  let downloadedFile = null;
+  console.log('Running yt-dlp:', args.join(' '));
   const proc = spawn('yt-dlp', args);
+  let log = '';
 
-  let progressLog = '';
-
-  proc.stdout.on('data', (data) => {
-    progressLog += data.toString();
-  });
-
-  proc.stderr.on('data', (data) => {
-    progressLog += data.toString();
-  });
+  proc.stdout.on('data', d => { log += d.toString(); process.stdout.write(d); });
+  proc.stderr.on('data', d => { log += d.toString(); process.stderr.write(d); });
 
   proc.on('close', (code) => {
     if (code !== 0) {
       return res.status(500).json({ error: 'Download failed. The video may be private or unavailable.' });
     }
 
-    // Find the downloaded file
     const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(filename));
     if (files.length === 0) {
-      return res.status(500).json({ error: 'Downloaded file not found.' });
+      return res.status(500).json({ error: 'Downloaded file not found on server.' });
     }
 
-    downloadedFile = files[0];
-    const fileUrl = `/downloads/${downloadedFile}`;
-
+    const downloadedFile = files[0];
     res.json({
       success: true,
       filename: downloadedFile,
-      url: fileUrl
+      url: `/downloads/${encodeURIComponent(downloadedFile)}`
     });
 
-    // Cleanup after 10 minutes
     setTimeout(() => {
       const fp = path.join(DOWNLOAD_DIR, downloadedFile);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
-    }, 10 * 60 * 1000);
+    }, 15 * 60 * 1000);
   });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`VidSnatch running at http://localhost:${PORT}`);
 });
