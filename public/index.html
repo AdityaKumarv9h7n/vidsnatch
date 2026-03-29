@@ -1,176 +1,263 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VidSnatch — Free Video Downloader</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0a0f;
-      --surface: #13131a;
-      --surface2: #1c1c27;
-      --border: #2a2a3a;
-      --accent: #7c3aed;
-      --accent2: #a855f7;
-      --glow: rgba(124,58,237,0.35);
-      --text: #f0f0f8;
-      --muted: #8888aa;
-      --yt: #ff4444;
-      --fb: #1877f2;
-      --ig: #e1306c;
-      --success: #22c55e;
-      --warn: #f59e0b;
+      --accent: #00e676;
+      --accent-dim: #00c853;
+      --accent-glow: rgba(0, 230, 118, 0.2);
+      --accent-border: rgba(0, 230, 118, 0.35);
+    }
+
+    [data-theme="dark"] {
+      --bg: #050a05;
+      --bg2: #0a110a;
+      --surface: #0f1a0f;
+      --surface2: #162116;
+      --surface3: #1c2a1c;
+      --border: #1e2e1e;
+      --border2: #243424;
+      --text: #e8f5e9;
+      --text2: #a5c8a5;
+      --muted: #5a7a5a;
+      --card-shadow: 0 4px 32px rgba(0,0,0,0.6);
+    }
+
+    [data-theme="light"] {
+      --bg: #f0faf0;
+      --bg2: #e8f5e9;
+      --surface: #ffffff;
+      --surface2: #f1f8f1;
+      --surface3: #e6f4e6;
+      --border: #c8e6c9;
+      --border2: #a5d6a7;
+      --text: #1b2e1b;
+      --text2: #2e5c2e;
+      --muted: #6a996a;
+      --card-shadow: 0 4px 24px rgba(0,100,0,0.08);
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Manrope', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      overflow-x: hidden;
+      transition: background 0.3s, color 0.3s;
     }
 
-    /* Background */
+    /* Animated background dots */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background:
-        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(124,58,237,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 80% 90%, rgba(168,85,247,0.08) 0%, transparent 60%);
+      background-image: radial-gradient(circle, var(--border2) 1px, transparent 1px);
+      background-size: 32px 32px;
+      opacity: 0.4;
       pointer-events: none;
       z-index: 0;
     }
 
-    /* Grid overlay */
     body::after {
       content: '';
       position: fixed;
-      inset: 0;
-      background-image: linear-gradient(var(--border) 1px, transparent 1px),
-                        linear-gradient(90deg, var(--border) 1px, transparent 1px);
-      background-size: 60px 60px;
-      opacity: 0.15;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 700px; height: 400px;
+      background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
       pointer-events: none;
       z-index: 0;
     }
 
-    .container {
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 0 20px;
+    .page {
       position: relative;
       z-index: 1;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
     }
 
-    /* Header */
+    /* ── HEADER ── */
     header {
-      padding: 48px 0 12px;
-      text-align: center;
-    }
-
-    .logo {
-      display: inline-flex;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
+      padding: 28px 0 40px;
     }
 
-    .logo-icon {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 10px;
+    .brand {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 0 20px var(--glow);
+      gap: 10px;
     }
 
-    .logo-text {
-      font-family: 'Syne', sans-serif;
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .brand-name {
+      font-size: 1.3rem;
       font-weight: 800;
-      font-size: 1.6rem;
+      color: var(--text);
       letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #fff 40%, var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
     }
 
-    .tagline {
-      color: var(--muted);
-      font-size: 0.95rem;
-      font-weight: 300;
-      margin-bottom: 8px;
-    }
+    .brand-name span { color: var(--accent); }
 
-    /* Platform badges */
-    .platforms {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 40px;
-      flex-wrap: wrap;
-    }
-
-    .badge {
-      padding: 5px 14px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 500;
+    .header-right {
       display: flex;
       align-items: center;
-      gap: 6px;
-      border: 1px solid;
+      gap: 10px;
     }
-    .badge.yt  { border-color: var(--yt);  color: var(--yt);  background: rgba(255,68,68,0.08); }
-    .badge.fb  { border-color: var(--fb);  color: var(--fb);  background: rgba(24,119,242,0.08); }
-    .badge.ig  { border-color: var(--ig);  color: var(--ig);  background: rgba(225,48,108,0.08); }
-    .badge.gen { border-color: var(--muted); color: var(--muted); background: rgba(136,136,170,0.08); }
 
-    /* Card */
+    /* Theme toggle */
+    .theme-toggle {
+      width: 52px; height: 28px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 999px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    .theme-toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      transition: transform 0.3s;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    [data-theme="light"] .theme-toggle::after {
+      transform: translateX(24px);
+    }
+
+    .theme-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .hero h1 {
+      font-size: clamp(1.8rem, 5vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    .hero p {
+      color: var(--text2);
+      font-size: 0.95rem;
+      font-weight: 400;
+      max-width: 480px;
+      margin: 0 auto 20px;
+      line-height: 1.6;
+    }
+
+    .platform-pills {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      background: var(--surface2);
+      letter-spacing: 0.3px;
+    }
+
+    .pill.yt  { border-color: rgba(255,68,68,0.4);  color: #ff6b6b; background: rgba(255,68,68,0.06); }
+    .pill.fb  { border-color: rgba(24,119,242,0.4); color: #5b9cf6; background: rgba(24,119,242,0.06); }
+    .pill.ig  { border-color: rgba(225,48,108,0.4); color: #f06292; background: rgba(225,48,108,0.06); }
+    .pill.tt  { border-color: rgba(0,240,255,0.3);  color: #4dd0e1; background: rgba(0,240,255,0.05); }
+
+    /* ── MAIN CARD ── */
     .card {
       background: var(--surface);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border2);
       border-radius: 20px;
-      padding: 32px;
-      margin-bottom: 24px;
+      padding: 28px;
+      box-shadow: var(--card-shadow);
       position: relative;
       overflow: hidden;
+      margin-bottom: 20px;
     }
 
     .card::before {
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent2), transparent);
-      opacity: 0.5;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+      opacity: 0.7;
     }
 
-    /* Input area */
-    .input-group {
+    /* Input row */
+    .input-row {
       display: flex;
-      gap: 12px;
-      margin-bottom: 0;
+      gap: 10px;
+    }
+
+    .url-wrap {
+      flex: 1;
+      position: relative;
+    }
+
+    .url-icon {
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      pointer-events: none;
     }
 
     .url-input {
-      flex: 1;
+      width: 100%;
       background: var(--surface2);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border2);
       border-radius: 12px;
-      padding: 14px 18px;
+      padding: 14px 14px 14px 42px;
       color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.95rem;
+      font-family: 'Manrope', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
@@ -179,93 +266,101 @@
 
     .url-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(124,58,237,0.15);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
     .btn {
-      padding: 14px 24px;
+      padding: 12px 22px;
       border-radius: 12px;
       border: none;
       cursor: pointer;
-      font-family: 'Syne', sans-serif;
+      font-family: 'Manrope', sans-serif;
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       transition: all 0.2s;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       white-space: nowrap;
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      color: white;
-      box-shadow: 0 4px 20px var(--glow);
+    .btn-green {
+      background: var(--accent);
+      color: #050a05;
+      box-shadow: 0 4px 20px var(--accent-glow);
     }
 
-    .btn-primary:hover:not(:disabled) {
+    .btn-green:hover:not(:disabled) {
+      background: #33ff8a;
       transform: translateY(-1px);
-      box-shadow: 0 6px 28px var(--glow);
+      box-shadow: 0 6px 28px rgba(0,230,118,0.35);
     }
 
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-green:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
-    .btn-success {
-      background: linear-gradient(135deg, #16a34a, var(--success));
-      color: white;
-      box-shadow: 0 4px 20px rgba(34,197,94,0.3);
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--accent-border);
+      color: var(--accent);
     }
 
-    .btn-success:hover { transform: translateY(-1px); }
+    .btn-outline:hover { background: var(--accent-glow); }
 
-    /* Video info */
-    #video-info {
-      display: none;
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
     }
 
-    .video-preview {
+    /* Video preview */
+    #video-info { display: none; }
+
+    .preview-row {
       display: flex;
       gap: 16px;
-      margin-bottom: 20px;
       align-items: flex-start;
+      margin-bottom: 22px;
     }
 
-    .thumb-wrap {
+    .thumb-box {
       position: relative;
       flex-shrink: 0;
     }
 
     .thumb {
-      width: 140px;
-      height: 90px;
+      width: 148px;
+      height: 94px;
       object-fit: cover;
       border-radius: 10px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--border2);
+      display: block;
     }
 
-    .thumb-platform {
+    .plat-tag {
       position: absolute;
-      bottom: 6px;
-      left: 6px;
+      bottom: 6px; left: 6px;
       padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 0.68rem;
-      font-weight: 700;
+      border-radius: 6px;
+      font-size: 0.65rem;
+      font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .thumb-platform.youtube  { background: var(--yt); color: white; }
-    .thumb-platform.facebook { background: var(--fb); color: white; }
-    .thumb-platform.instagram{ background: var(--ig); color: white; }
-    .thumb-platform.other    { background: var(--accent); color: white; }
 
-    .video-meta { flex: 1; min-width: 0; }
+    .plat-tag.youtube   { background: #ff4444; color: #fff; }
+    .plat-tag.facebook  { background: #1877f2; color: #fff; }
+    .plat-tag.instagram { background: #e1306c; color: #fff; }
+    .plat-tag.tiktok    { background: #010101; color: #00f0ff; border: 1px solid #00f0ff; }
+    .plat-tag.twitter   { background: #1da1f2; color: #fff; }
+    .plat-tag.other     { background: var(--accent); color: #050a05; }
 
-    .video-title {
-      font-family: 'Syne', sans-serif;
+    .meta { flex: 1; min-width: 0; }
+
+    .meta-title {
       font-weight: 700;
-      font-size: 1rem;
-      line-height: 1.3;
+      font-size: 0.95rem;
+      line-height: 1.4;
       margin-bottom: 6px;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -273,121 +368,108 @@
       overflow: hidden;
     }
 
-    .video-uploader {
+    .meta-sub {
+      font-size: 0.8rem;
       color: var(--muted);
-      font-size: 0.83rem;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
 
-    .video-duration {
+    .meta-dur {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 3px 10px;
-      font-size: 0.78rem;
-      color: var(--muted);
+      font-size: 0.75rem;
+      color: var(--text2);
+      font-weight: 600;
     }
 
-    /* Format selector */
-    .section-label {
-      font-size: 0.78rem;
+    /* Formats */
+    .sec-label {
+      font-size: 0.7rem;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 1.2px;
       color: var(--muted);
-      margin-bottom: 12px;
-      font-weight: 500;
+      margin-bottom: 10px;
     }
 
     .formats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       gap: 8px;
       margin-bottom: 20px;
     }
 
-    .format-btn {
+    .fmt {
       background: var(--surface2);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border2);
       border-radius: 10px;
-      padding: 10px 14px;
+      padding: 10px 12px;
       cursor: pointer;
       transition: all 0.15s;
       text-align: left;
       color: var(--text);
+      font-family: 'Manrope', sans-serif;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      gap: 2px;
     }
 
-    .format-btn:hover {
-      border-color: var(--accent);
-      background: rgba(124,58,237,0.08);
-    }
+    .fmt:hover { border-color: var(--accent); background: rgba(0,230,118,0.05); }
 
-    .format-btn.selected {
+    .fmt.active {
       border-color: var(--accent);
-      background: rgba(124,58,237,0.15);
+      background: rgba(0,230,118,0.1);
       box-shadow: 0 0 0 1px var(--accent) inset;
     }
 
-    .fmt-label { font-size: 0.85rem; font-weight: 500; }
-    .fmt-size  { font-size: 0.72rem; color: var(--muted); }
+    .fmt-name { font-size: 0.83rem; font-weight: 700; }
+    .fmt-size { font-size: 0.7rem; color: var(--muted); }
 
-    /* Download button */
+    /* Download row */
     .dl-row {
       display: flex;
-      gap: 12px;
       align-items: center;
+      gap: 12px;
       flex-wrap: wrap;
     }
 
-    /* Progress */
-    #progress-area {
-      display: none;
-      margin-top: 16px;
+    .dl-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
     }
 
-    .progress-bar-wrap {
+    /* Progress */
+    #progress { display: none; margin-top: 18px; }
+
+    .prog-track {
       background: var(--surface2);
       border-radius: 999px;
-      height: 6px;
+      height: 5px;
       overflow: hidden;
       margin-bottom: 8px;
     }
 
-    .progress-bar {
+    .prog-bar {
       height: 100%;
       border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
       width: 0%;
-      transition: width 0.4s ease;
-      animation: shimmer 1.5s infinite linear;
+      transition: width 0.5s ease;
     }
 
-    @keyframes shimmer {
-      0%   { filter: brightness(1); }
-      50%  { filter: brightness(1.3); }
-      100% { filter: brightness(1); }
-    }
-
-    .progress-label {
-      font-size: 0.8rem;
-      color: var(--muted);
-      text-align: center;
-    }
+    .prog-label { font-size: 0.78rem; color: var(--muted); text-align: center; }
 
     /* Result */
-    #result-area {
-      display: none;
-      margin-top: 16px;
-    }
+    #result { display: none; margin-top: 18px; }
 
     .result-box {
-      background: rgba(34,197,94,0.08);
-      border: 1px solid rgba(34,197,94,0.25);
+      background: rgba(0,230,118,0.07);
+      border: 1px solid var(--accent-border);
       border-radius: 12px;
       padding: 16px 20px;
       display: flex;
@@ -396,350 +478,384 @@
       flex-wrap: wrap;
     }
 
-    .result-icon { font-size: 1.8rem; }
-
+    .result-icon { font-size: 1.6rem; }
     .result-info { flex: 1; min-width: 0; }
-    .result-info strong { display: block; font-size: 0.9rem; color: var(--success); margin-bottom: 2px; }
-    .result-info span   { font-size: 0.78rem; color: var(--muted); word-break: break-all; }
+    .result-info strong { display: block; color: var(--accent); font-size: 0.88rem; margin-bottom: 2px; }
+    .result-info span   { font-size: 0.72rem; color: var(--muted); word-break: break-all; }
 
     /* Error */
-    .error-box {
-      background: rgba(239,68,68,0.08);
+    .err {
+      background: rgba(239,68,68,0.07);
       border: 1px solid rgba(239,68,68,0.25);
-      border-radius: 12px;
-      padding: 14px 18px;
+      border-radius: 10px;
+      padding: 12px 16px;
       color: #f87171;
-      font-size: 0.88rem;
+      font-size: 0.83rem;
       margin-top: 14px;
       display: none;
+      font-weight: 500;
     }
 
     /* Spinner */
-    .spinner {
-      width: 18px; height: 18px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white;
+    .spin {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(5,10,5,0.3);
+      border-top-color: #050a05;
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      animation: rot 0.65s linear infinite;
       display: none;
+      flex-shrink: 0;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes rot { to { transform: rotate(360deg); } }
 
-    /* Tips */
-    .tips {
+    /* ── FEATURES ── */
+    .features {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       gap: 12px;
-      margin-top: 8px;
     }
 
-    .tip {
+    .feat {
       background: var(--surface);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border2);
       border-radius: 14px;
-      padding: 16px;
+      padding: 18px 16px;
+      transition: border-color 0.2s;
     }
 
-    .tip-icon { font-size: 1.4rem; margin-bottom: 8px; }
-    .tip h4 { font-family: 'Syne', sans-serif; font-size: 0.88rem; margin-bottom: 4px; }
-    .tip p  { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+    .feat:hover { border-color: var(--accent-border); }
 
+    .feat-icon { font-size: 1.3rem; margin-bottom: 8px; }
+    .feat h4 { font-size: 0.82rem; font-weight: 700; margin-bottom: 4px; }
+    .feat p  { font-size: 0.72rem; color: var(--muted); line-height: 1.5; }
+
+    /* Footer */
     footer {
       text-align: center;
-      padding: 32px 0;
+      padding-top: 32px;
+      font-size: 0.72rem;
       color: var(--muted);
-      font-size: 0.78rem;
       position: relative;
       z-index: 1;
+      line-height: 1.7;
     }
 
-    @media (max-width: 560px) {
-      .input-group { flex-direction: column; }
-      .video-preview { flex-direction: column; }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 540px) {
+      .input-row { flex-direction: column; }
+      .preview-row { flex-direction: column; }
       .thumb { width: 100%; height: auto; }
+      .hero h1 { font-size: 1.7rem; }
     }
   </style>
 </head>
 <body>
 
-<div class="container">
+<div class="page">
+
+  <!-- Header -->
   <header>
-    <div class="logo">
-      <div class="logo-icon">⬇</div>
-      <span class="logo-text">VidSnatch</span>
+    <div class="brand">
+      <div class="brand-icon">⬇</div>
+      <span class="brand-name">Vid<span>Snatch</span></span>
     </div>
-    <p class="tagline">Download videos from YouTube, Facebook, Instagram & more — free, fast, no limits.</p>
+    <div class="header-right">
+      <span class="theme-label" id="themeLabel">DARK</span>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark"></button>
+    </div>
   </header>
 
-  <div class="platforms">
-    <span class="badge yt">▶ YouTube</span>
-    <span class="badge fb">f Facebook</span>
-    <span class="badge ig">◎ Instagram</span>
-    <span class="badge gen">+ 1000 more sites</span>
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Download Any Video,<br/><em>Instantly & Free</em></h1>
+    <p>Paste a link from YouTube, Instagram, Facebook, TikTok or 1000+ other platforms and grab your video in seconds.</p>
+    <div class="platform-pills">
+      <span class="pill yt">▶ YouTube</span>
+      <span class="pill fb">f Facebook</span>
+      <span class="pill ig">◎ Instagram</span>
+      <span class="pill tt">♪ TikTok</span>
+      <span class="pill">🐦 Twitter/X</span>
+      <span class="pill">+ 1000 more</span>
+    </div>
   </div>
 
-  <!-- Main card -->
+  <!-- Main Card -->
   <div class="card">
-    <div class="input-group">
-      <input
-        type="url"
-        class="url-input"
-        id="urlInput"
-        placeholder="Paste video URL here — YouTube, Facebook, Instagram Reels..."
-        autocomplete="off"
-      />
-      <button class="btn btn-primary" id="fetchBtn" onclick="fetchInfo()">
-        <div class="spinner" id="fetchSpinner"></div>
-        <span id="fetchLabel">Fetch</span>
+
+    <div class="input-row">
+      <div class="url-wrap">
+        <span class="url-icon">🔗</span>
+        <input
+          type="url"
+          class="url-input"
+          id="urlInput"
+          placeholder="Paste video URL here…"
+          autocomplete="off"
+        />
+      </div>
+      <button class="btn btn-green" id="fetchBtn" onclick="fetchInfo()">
+        <div class="spin" id="fetchSpin"></div>
+        <span id="fetchLabel">Fetch Info</span>
       </button>
     </div>
 
-    <div class="error-box" id="errorBox"></div>
+    <div class="err" id="errBox"></div>
 
-    <!-- Video info section -->
+    <!-- Video info -->
     <div id="video-info">
-      <hr style="border:none; border-top:1px solid var(--border); margin: 24px 0;" />
+      <hr class="divider" />
 
-      <div class="video-preview">
-        <div class="thumb-wrap">
+      <div class="preview-row">
+        <div class="thumb-box">
           <img class="thumb" id="thumbImg" src="" alt="Thumbnail" />
-          <span class="thumb-platform" id="platformBadge"></span>
+          <span class="plat-tag" id="platTag"></span>
         </div>
-        <div class="video-meta">
-          <div class="video-title" id="videoTitle"></div>
-          <div class="video-uploader" id="videoUploader"></div>
-          <div class="video-duration" id="videoDuration"></div>
+        <div class="meta">
+          <div class="meta-title" id="metaTitle"></div>
+          <div class="meta-sub" id="metaUploader"></div>
+          <div class="meta-dur" id="metaDur"></div>
         </div>
       </div>
 
-      <div class="section-label">Choose Format</div>
-      <div class="formats-grid" id="formatsGrid"></div>
+      <div class="sec-label">Select Quality</div>
+      <div class="formats-grid" id="fmtGrid"></div>
 
       <div class="dl-row">
-        <button class="btn btn-primary" id="dlBtn" onclick="downloadVideo()" disabled>
-          <div class="spinner" id="dlSpinner"></div>
+        <button class="btn btn-green" id="dlBtn" onclick="startDownload()" disabled>
+          <div class="spin" id="dlSpin" style="border-color:rgba(5,10,5,0.3); border-top-color:#050a05;"></div>
           <span id="dlLabel">⬇ Download</span>
         </button>
-        <span style="font-size:0.78rem; color:var(--muted);">Select a format above to enable download</span>
+        <span class="dl-hint" id="dlHint">Select a quality to continue</span>
       </div>
 
-      <div id="progress-area">
-        <div class="progress-bar-wrap">
-          <div class="progress-bar" id="progressBar"></div>
-        </div>
-        <div class="progress-label" id="progressLabel">Processing your video…</div>
+      <div id="progress">
+        <div class="prog-track"><div class="prog-bar" id="progBar"></div></div>
+        <div class="prog-label" id="progLabel">Preparing your video…</div>
       </div>
 
-      <div id="result-area">
+      <div id="result">
         <div class="result-box">
           <div class="result-icon">✅</div>
           <div class="result-info">
-            <strong>Ready to download!</strong>
-            <span id="resultFilename"></span>
+            <strong>Ready! Click to save.</strong>
+            <span id="resultName"></span>
           </div>
-          <a class="btn btn-success" id="downloadLink" href="#" download>⬇ Save File</a>
+          <a class="btn btn-green" id="dlLink" href="#" download>⬇ Save File</a>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Tips -->
-  <div class="tips">
-    <div class="tip">
-      <div class="tip-icon">🎬</div>
-      <h4>YouTube Videos & Shorts</h4>
-      <p>Full videos, Shorts, playlists — paste any YouTube link and pick your quality.</p>
+  <!-- Features -->
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon">🎬</div>
+      <h4>YouTube & Shorts</h4>
+      <p>Up to 4K quality, Shorts and long-form videos with full audio.</p>
     </div>
-    <div class="tip">
-      <div class="tip-icon">📱</div>
-      <h4>Facebook Reels & Videos</h4>
-      <p>Download public Facebook videos, Reels, and Watch content in HD.</p>
-    </div>
-    <div class="tip">
-      <div class="tip-icon">🎡</div>
+    <div class="feat">
+      <div class="feat-icon">📱</div>
       <h4>Instagram Reels</h4>
-      <p>Grab Instagram Reels and public posts directly to your device.</p>
+      <p>Reels and public posts downloaded with audio — fixed!</p>
     </div>
-    <div class="tip">
-      <div class="tip-icon">⚡</div>
-      <h4>1000+ Platforms</h4>
-      <p>Powered by yt-dlp — supports Twitter/X, TikTok, Vimeo, Reddit & many more.</p>
+    <div class="feat">
+      <div class="feat-icon">👥</div>
+      <h4>Facebook Videos</h4>
+      <p>Public Facebook videos, Reels and Watch content in HD.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🎵</div>
+      <h4>Audio Only</h4>
+      <p>Extract MP3 audio from any video for music or podcasts.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">⚡</div>
+      <h4>Lightning Fast</h4>
+      <p>Server-side processing means no browser slowdowns.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔒</div>
+      <h4>No Signup Needed</h4>
+      <p>Completely free, no account, no ads, no tracking.</p>
     </div>
   </div>
-</div>
+
+</div><!-- /page -->
 
 <footer>
-  <p>VidSnatch uses yt-dlp. Only download content you have the right to download. Respect copyright.</p>
+  <p>Powered by <a href="https://github.com/yt-dlp/yt-dlp" target="_blank">yt-dlp</a> &nbsp;·&nbsp; Only download content you have the right to. Respect copyright laws.</p>
 </footer>
 
 <script>
-  let selectedFormat = null;
+  // Theme
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    document.getElementById('themeLabel').textContent = isDark ? 'LIGHT' : 'DARK';
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+  }
+
+  // Restore saved theme
+  const saved = localStorage.getItem('theme');
+  if (saved) {
+    document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('themeLabel').textContent = saved.toUpperCase();
+  }
+
+  // State
+  let selectedFmt = null;
   let currentInfo = null;
 
-  function fmtDuration(sec) {
-    if (!sec) return 'Unknown';
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${String(s).padStart(2,'0')}`;
+  function fmtDur(s) {
+    if (!s) return 'Unknown';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    return `${m}:${String(sec).padStart(2,'0')}`;
   }
 
-  function fmtSize(bytes) {
-    if (!bytes) return '';
-    if (bytes > 1e9) return `~${(bytes/1e9).toFixed(1)}GB`;
-    if (bytes > 1e6) return `~${(bytes/1e6).toFixed(0)}MB`;
-    return `~${(bytes/1e3).toFixed(0)}KB`;
+  function fmtSize(b) {
+    if (!b) return '';
+    if (b > 1e9) return `~${(b/1e9).toFixed(1)} GB`;
+    if (b > 1e6) return `~${(b/1e6).toFixed(0)} MB`;
+    return `~${(b/1e3).toFixed(0)} KB`;
   }
 
-  function showError(msg) {
-    const box = document.getElementById('errorBox');
-    box.textContent = '⚠ ' + msg;
-    box.style.display = 'block';
+  function showErr(msg) {
+    const b = document.getElementById('errBox');
+    b.textContent = '⚠ ' + msg;
+    b.style.display = 'block';
   }
 
-  function clearError() {
-    document.getElementById('errorBox').style.display = 'none';
-  }
+  function clearErr() { document.getElementById('errBox').style.display = 'none'; }
 
   async function fetchInfo() {
     const url = document.getElementById('urlInput').value.trim();
-    if (!url) { showError('Please enter a video URL.'); return; }
-
-    clearError();
+    if (!url) { showErr('Please enter a video URL.'); return; }
+    clearErr();
     document.getElementById('video-info').style.display = 'none';
-    document.getElementById('result-area').style.display = 'none';
-    document.getElementById('progress-area').style.display = 'none';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('progress').style.display = 'none';
+    selectedFmt = null;
 
     const btn = document.getElementById('fetchBtn');
-    document.getElementById('fetchSpinner').style.display = 'block';
+    document.getElementById('fetchSpin').style.display = 'block';
     document.getElementById('fetchLabel').textContent = 'Fetching…';
     btn.disabled = true;
 
     try {
-      const res = await fetch('/api/info', {
+      const r = await fetch('/api/info', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
       });
-      const data = await res.json();
-
-      if (!res.ok) { showError(data.error || 'Failed to fetch info.'); return; }
+      const data = await r.json();
+      if (!r.ok) { showErr(data.error || 'Failed to fetch.'); return; }
 
       currentInfo = data;
-      selectedFormat = null;
 
-      // Populate
       document.getElementById('thumbImg').src = data.thumbnail || '';
-      document.getElementById('videoTitle').textContent = data.title || 'Unknown Title';
-      document.getElementById('videoUploader').textContent = '👤 ' + (data.uploader || 'Unknown');
-      document.getElementById('videoDuration').textContent = '⏱ ' + fmtDuration(data.duration);
+      document.getElementById('metaTitle').textContent = data.title || 'Unknown Title';
+      document.getElementById('metaUploader').textContent = '👤 ' + (data.uploader || 'Unknown');
+      document.getElementById('metaDur').textContent = '⏱ ' + fmtDur(data.duration);
 
-      const pb = document.getElementById('platformBadge');
-      pb.textContent = data.platform;
-      pb.className = 'thumb-platform ' + data.platform;
+      const tag = document.getElementById('platTag');
+      tag.textContent = data.platform;
+      tag.className = 'plat-tag ' + data.platform;
 
-      // Formats
-      const grid = document.getElementById('formatsGrid');
+      // Render formats
+      const grid = document.getElementById('fmtGrid');
       grid.innerHTML = '';
 
-      if (data.formats && data.formats.length > 0) {
-        data.formats.forEach(f => {
-          const btn2 = document.createElement('button');
-          btn2.className = 'format-btn';
-          btn2.innerHTML = `<span class="fmt-label">${f.label}</span><span class="fmt-size">${fmtSize(f.filesize)}</span>`;
-          btn2.onclick = () => selectFormat(f.format_id, btn2);
-          grid.appendChild(btn2);
-        });
-      } else {
-        // Best available
-        const btn2 = document.createElement('button');
-        btn2.className = 'format-btn selected';
-        btn2.innerHTML = `<span class="fmt-label">Best Available</span><span class="fmt-size">Auto</span>`;
-        btn2.onclick = () => selectFormat(null, btn2);
-        grid.appendChild(btn2);
-        selectFormat(null, btn2);
-      }
+      (data.formats || []).forEach(f => {
+        const el = document.createElement('button');
+        el.className = 'fmt';
+        el.innerHTML = `<span class="fmt-name">${f.label}</span><span class="fmt-size">${fmtSize(f.filesize)}</span>`;
+        el.onclick = () => pickFmt(f.format_id, el);
+        grid.appendChild(el);
+      });
 
       document.getElementById('dlBtn').disabled = true;
+      document.getElementById('dlHint').textContent = 'Select a quality to continue';
       document.getElementById('video-info').style.display = 'block';
 
     } catch (e) {
-      showError('Network error. Make sure the server is running.');
+      showErr('Network error. Is the server running?');
     } finally {
-      document.getElementById('fetchSpinner').style.display = 'none';
-      document.getElementById('fetchLabel').textContent = 'Fetch';
+      document.getElementById('fetchSpin').style.display = 'none';
+      document.getElementById('fetchLabel').textContent = 'Fetch Info';
       btn.disabled = false;
     }
   }
 
-  function selectFormat(formatId, el) {
-    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('selected'));
-    el.classList.add('selected');
-    selectedFormat = formatId;
+  function pickFmt(id, el) {
+    document.querySelectorAll('.fmt').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    selectedFmt = id;
     document.getElementById('dlBtn').disabled = false;
+    document.getElementById('dlHint').textContent = 'Ready to download!';
   }
 
-  async function downloadVideo() {
+  async function startDownload() {
     if (!currentInfo) return;
-
     const url = document.getElementById('urlInput').value.trim();
     const btn = document.getElementById('dlBtn');
     btn.disabled = true;
+    document.getElementById('dlSpin').style.display = 'block';
+    document.getElementById('dlLabel').textContent = 'Working…';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('progress').style.display = 'block';
 
-    document.getElementById('dlSpinner').style.display = 'block';
-    document.getElementById('dlLabel').textContent = 'Processing…';
-    document.getElementById('result-area').style.display = 'none';
-    document.getElementById('progress-area').style.display = 'block';
+    // Animated progress
+    let pct = 0;
+    const bar = document.getElementById('progBar');
+    const lbl = document.getElementById('progLabel');
+    const msgs = ['Connecting to source…', 'Fetching video stream…', 'Merging audio & video…', 'Almost ready…'];
+    let mi = 0;
 
-    // Fake progress animation
-    let prog = 0;
-    const bar = document.getElementById('progressBar');
-    const lbl = document.getElementById('progressLabel');
-    const messages = ['Connecting to source…','Fetching video stream…','Processing formats…','Almost done…'];
-    let msgIdx = 0;
-
-    const interval = setInterval(() => {
-      prog = Math.min(prog + Math.random() * 8, 85);
-      bar.style.width = prog + '%';
-      if (Math.random() > 0.7 && msgIdx < messages.length - 1) {
-        msgIdx++;
-        lbl.textContent = messages[msgIdx];
-      }
-    }, 400);
+    const iv = setInterval(() => {
+      pct = Math.min(pct + Math.random() * 9, 88);
+      bar.style.width = pct + '%';
+      if (Math.random() > 0.65 && mi < msgs.length - 1) lbl.textContent = msgs[++mi];
+    }, 450);
 
     try {
-      const res = await fetch('/api/download', {
+      const r = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, format_id: selectedFormat, title: currentInfo.title })
+        body: JSON.stringify({ url, format_id: selectedFmt, title: currentInfo.title })
       });
-      const data = await res.json();
+      const data = await r.json();
 
-      clearInterval(interval);
+      clearInterval(iv);
       bar.style.width = '100%';
       lbl.textContent = 'Done!';
 
-      if (!res.ok) {
-        showError(data.error || 'Download failed.');
-        document.getElementById('progress-area').style.display = 'none';
+      if (!r.ok) {
+        showErr(data.error || 'Download failed.');
+        document.getElementById('progress').style.display = 'none';
       } else {
-        document.getElementById('resultFilename').textContent = data.filename;
-        document.getElementById('downloadLink').href = data.url;
-        document.getElementById('downloadLink').setAttribute('download', data.filename);
-        document.getElementById('result-area').style.display = 'block';
-        setTimeout(() => { document.getElementById('progress-area').style.display = 'none'; }, 600);
+        document.getElementById('resultName').textContent = data.filename;
+        const link = document.getElementById('dlLink');
+        link.href = data.url;
+        link.setAttribute('download', data.filename);
+        document.getElementById('result').style.display = 'block';
+        setTimeout(() => { document.getElementById('progress').style.display = 'none'; }, 700);
       }
     } catch (e) {
-      clearInterval(interval);
-      showError('Network error during download.');
-      document.getElementById('progress-area').style.display = 'none';
+      clearInterval(iv);
+      showErr('Network error during download.');
+      document.getElementById('progress').style.display = 'none';
     } finally {
-      document.getElementById('dlSpinner').style.display = 'none';
+      document.getElementById('dlSpin').style.display = 'none';
       document.getElementById('dlLabel').textContent = '⬇ Download';
       btn.disabled = false;
     }
   }
 
-  // Allow Enter key
   document.getElementById('urlInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') fetchInfo();
   });
