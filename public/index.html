@@ -808,59 +808,59 @@
 
     btn.disabled = true;
     document.getElementById('dlSpin').style.display = 'block';
-    document.getElementById('dlLabel').textContent = 'Starting…';
+    document.getElementById('dlLabel').textContent = 'Downloading…';
     document.getElementById('result').style.display = 'none';
     document.getElementById('progress').style.display = 'block';
 
     const bar = document.getElementById('progBar');
     const lbl = document.getElementById('progLabel');
+    bar.style.width = '0%';
+    lbl.textContent = 'Connecting to source…';
 
+    // Animate bar while waiting
     let pct = 0;
-    const msgs = ['Connecting to source…', 'Fetching video stream…', 'Streaming to your device…', 'Downloading…'];
-    let mi = 0;
     const iv = setInterval(() => {
-      pct = Math.min(pct + Math.random() * 5, 90);
+      pct = Math.min(pct + 2, 85);
       bar.style.width = pct + '%';
-      if (Math.random() > 0.7 && mi < msgs.length - 1) lbl.textContent = msgs[++mi];
-    }, 500);
+    }, 300);
 
     try {
-      const r = await fetch('/api/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, format_id: selectedFmt, title: currentInfo.title })
-      });
+      // Build a form and submit it — browser handles the file download natively
+      // This avoids fetch timeouts and blob memory issues for large files
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/api/download';
+      form.style.display = 'none';
 
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({ error: 'Download failed.' }));
-        throw new Error(err.error || 'Download failed.');
+      const fields = { url, format_id: selectedFmt || 'best', title: currentInfo.title || 'video' };
+      for (const [k, v] of Object.entries(fields)) {
+        const inp = document.createElement('input');
+        inp.name = k; inp.value = v; inp.type = 'hidden';
+        form.appendChild(inp);
       }
 
-      // Stream blob directly — browser saves file as it arrives
-      const blob = await r.blob();
+      document.body.appendChild(form);
 
       clearInterval(iv);
       bar.style.width = '100%';
-      lbl.textContent = 'Done! Saving file…';
+      lbl.textContent = 'Starting download…';
 
-      // Trigger browser save dialog immediately
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = safeTitle + '.' + ext;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-
+      // Show success message
       document.getElementById('resultName').textContent = safeTitle + '.' + ext;
       document.getElementById('dlLink').style.display = 'none';
       document.getElementById('result').style.display = 'block';
-      setTimeout(() => { document.getElementById('progress').style.display = 'none'; }, 800);
+
+      // Submit form — browser triggers native Save dialog instantly
+      form.submit();
+      document.body.removeChild(form);
+
+      setTimeout(() => {
+        document.getElementById('progress').style.display = 'none';
+      }, 1500);
 
     } catch (e) {
       clearInterval(iv);
-      showErr(e.message || 'Download failed. Try again.');
+      showErr('Download failed. Please try again.');
       document.getElementById('progress').style.display = 'none';
     } finally {
       document.getElementById('dlSpin').style.display = 'none';
@@ -875,3 +875,5 @@
 </script>
 </body>
 </html>
+
+
