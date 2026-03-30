@@ -25,14 +25,6 @@ function detectPlatform(url) {
   return 'other';
 }
 
-// Only apply cookies for YouTube, not other platforms
-function getCookiesFlag(platform) {
-  if (platform === 'youtube' && fs.existsSync(COOKIES_PATH)) {
-    return `--cookies ${COOKIES_PATH}`;
-  }
-  return '';
-}
-
 function getCookiesArgs(platform) {
   if (platform === 'youtube' && fs.existsSync(COOKIES_PATH)) {
     return ['--cookies', COOKIES_PATH];
@@ -46,159 +38,122 @@ app.post('/api/info', (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
-
+  const cookiesFlag = (platform === 'youtube' && fs.existsSync(COOKIES_PATH))
+    ? `--cookies ${COOKIES_PATH}` : '';
   const extraArgs = platform === 'youtube'
-    ? '--extractor-args "youtube:player_client=android,web"'
-    : '';
-
-  // Cookies only for YouTube ✅
-  const cookiesFlag = getCookiesFlag(platform);
+    ? '--extractor-args "youtube:player_client=android,web"' : '';
 
   const cmd = `yt-dlp --dump-json --no-playlist ${cookiesFlag} ${extraArgs} "${url}"`;
-
-  console.log(`[INFO] platform=${platform} cmd=${cmd}`);
+  console.log(`[INFO] ${platform}: ${url}`);
 
   exec(cmd, { timeout: 60000 }, (err, stdout, stderr) => {
     if (err) {
       console.error('[INFO ERROR]', stderr);
-      return res.status(400).json({
-        error: 'Could not fetch video info. The video may be private or unavailable.'
-      });
+      return res.status(400).json({ error: 'Could not fetch video info. The video may be private or unavailable.' });
     }
-
     try {
-      const firstLine = stdout.trim().split('\n')[0];
-      const info = JSON.parse(firstLine);
+      const info = JSON.parse(stdout.trim().split('\n')[0]);
       const formats = info.formats || [];
-
       const resolutions = [2160, 1440, 1080, 720, 480, 360, 240, 144];
-      const smartFormats = [];
-
-      smartFormats.push({
-        format_id: 'best',
-        label: '⭐ Best Quality (Auto)',
-        ext: 'mp4',
-        filesize: null
-      });
+      const smartFormats = [{ format_id: 'best', label: '⭐ Best Quality (Auto)', ext: 'mp4', filesize: null }];
 
       resolutions.forEach(r => {
         const vf = formats
           .filter(f => f.height === r && f.vcodec && f.vcodec !== 'none')
           .sort((a, b) => (b.filesize || 0) - (a.filesize || 0))[0];
-        if (vf) {
-          smartFormats.push({
-            format_id: `${r}p`,
-            label: `${r}p`,
-            ext: 'mp4',
-            filesize: vf.filesize || vf.filesize_approx || null,
-            height: r
-          });
-        }
+        if (vf) smartFormats.push({
+          format_id: `${r}p`, label: `${r}p`, ext: 'mp4',
+          filesize: vf.filesize || vf.filesize_approx || null
+        });
       });
 
       const audioBest = formats
         .filter(f => f.acodec && f.acodec !== 'none' && (!f.vcodec || f.vcodec === 'none'))
         .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
-
-      if (audioBest) {
-        smartFormats.push({
-          format_id: 'audio',
-          label: '🎵 Audio Only (MP3)',
-          ext: 'mp3',
-          filesize: audioBest.filesize || null
-        });
-      }
-
-      res.json({
-        title: info.title,
-        thumbnail: info.thumbnail,
-        duration: info.duration,
-        uploader: info.uploader || info.channel || info.uploader_id,
-        platform,
-        formats: smartFormats,
-        webpage_url: info.webpage_url || url
+      if (audioBest) smartFormats.push({
+        format_id: 'audio', label: '🎵 Audio Only (MP3)', ext: 'mp3', filesize: null
       });
 
+      res.json({
+        title: info.title, thumbnail: info.thumbnail, duration: info.duration,
+        uploader: info.uploader || info.channel || '', platform,
+        formats: smartFormats, webpage_url: info.webpage_url || url
+      });
     } catch (e) {
-      console.error('[PARSE ERROR]', e);
       res.status(500).json({ error: 'Failed to parse video info.' });
     }
   });
 });
 
-// ── DOWNLOAD VIDEO ──
+// ── STREAM DOWNLOAD DIRECTLY TO BROWSER ──
+// Instead of saving to disk first, we pipe yt-dlp stdout straight to the response.
+// This means the browser starts receiving the file immediately — no timeout waiting.
 app.post('/api/download', (req, res) => {
   const { url, format_id, title } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
-  const safeTitle = (title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '_').substring(0, 60);
-  const filename = `${safeTitle}_${Date.now()}`;
-  const outputTemplate = path.join(DOWNLOAD_DIR, `${filename}.%(ext)s`);
+  const safeTitle = (title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '_').substring(0, 80);
+  const ext = format_id === 'audio' ? 'mp3' : 'mp4';
 
   let formatArg;
   if (!format_id || format_id === 'best') {
-    formatArg = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'];
+    // For platforms like Twitter that have combined streams, 'best' is instant
+    formatArg = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'];
   } else if (format_id === 'audio') {
-    formatArg = ['-f', 'bestaudio', '-x', '--audio-format', 'mp3'];
+    formatArg = ['-f', 'bestaudio[ext=m4a]/bestaudio'];
   } else {
     const height = format_id.replace('p', '');
-    formatArg = [
-      '-f',
-      `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`
-    ];
+    formatArg = ['-f', `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${height}]/best`];
   }
 
-  // YouTube extra args
-  const extraArgs = platform === 'youtube'
-    ? ['--extractor-args', 'youtube:player_client=android,web']
-    : [];
-
-  // Cookies only for YouTube ✅
   const cookiesArgs = getCookiesArgs(platform);
+  const extraArgs = platform === 'youtube'
+    ? ['--extractor-args', 'youtube:player_client=android,web'] : [];
 
+  // Key fix: output to stdout with -o - so we can pipe directly to browser
   const args = [
     ...formatArg,
-    '--merge-output-format', 'mp4',
     '--no-playlist',
     ...cookiesArgs,
     ...extraArgs,
-    '-o', outputTemplate,
+    '-o', '-',   // ← output to stdout, stream directly
     url
   ];
 
-  console.log(`[DOWNLOAD] platform=${platform} args=${args.join(' ')}`);
-  const proc = spawn('yt-dlp', args);
-  let log = '';
+  console.log(`[DOWNLOAD] ${platform} streaming: ${args.join(' ')}`);
 
-  proc.stdout.on('data', d => { log += d.toString(); process.stdout.write(d); });
-  proc.stderr.on('data', d => { log += d.toString(); process.stderr.write(d); });
+  // Set headers so browser starts downloading immediately
+  res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.${ext}"`);
+  res.setHeader('Content-Type', ext === 'mp3' ? 'audio/mpeg' : 'video/mp4');
+  res.setHeader('Transfer-Encoding', 'chunked');
+
+  const proc = spawn('yt-dlp', args);
+
+  // Pipe yt-dlp output straight to browser response — instant start
+  proc.stdout.pipe(res);
+
+  let errLog = '';
+  proc.stderr.on('data', d => {
+    errLog += d.toString();
+    process.stderr.write(d);
+  });
 
   proc.on('close', code => {
-    if (code !== 0) {
-      console.error('[DOWNLOAD FAILED]', log);
-      return res.status(500).json({ error: 'Download failed. The video may be private or unavailable.' });
+    console.log(`[DOWNLOAD] done, code=${code}`);
+    if (code !== 0 && !res.headersSent) {
+      res.status(500).json({ error: 'Download failed.' });
     }
+  });
 
-    const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(filename));
-    if (!files.length) return res.status(500).json({ error: 'File not found after download.' });
-
-    const downloadedFile = files[0];
-    res.json({
-      success: true,
-      filename: downloadedFile,
-      url: `/downloads/${encodeURIComponent(downloadedFile)}`
-    });
-
-    setTimeout(() => {
-      const fp = path.join(DOWNLOAD_DIR, downloadedFile);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
-    }, 15 * 60 * 1000);
+  // If client disconnects, kill yt-dlp
+  req.on('close', () => {
+    proc.kill('SIGTERM');
   });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`VidSnatch running at http://localhost:${PORT}`);
-  console.log(`YouTube cookies: ${fs.existsSync(COOKIES_PATH) ? '✅ FOUND' : '❌ NOT FOUND'}`);
+  console.log(`Cookies: ${fs.existsSync(COOKIES_PATH) ? '✅ found' : '❌ not found'}`);
 });
