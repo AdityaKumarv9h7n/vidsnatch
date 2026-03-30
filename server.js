@@ -173,6 +173,12 @@ app.post('/api/download', (req, res) => {
   });
 });
 
+const COOKIES = fs.existsSync('/etc/secrets/cookies.txt')
+  ? '--cookies /etc/secrets/cookies.txt'
+  : '';
+
+const cmd = `yt-dlp --dump-json --no-playlist ${COOKIES} ${extraArgs} "${url}"`;
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`VidSnatch running at http://localhost:${PORT}`);
