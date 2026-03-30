@@ -803,24 +803,26 @@
     if (!currentInfo) return;
     const url = document.getElementById('urlInput').value.trim();
     const btn = document.getElementById('dlBtn');
+    const ext = selectedFmt === 'audio' ? 'mp3' : 'mp4';
+    const safeTitle = (currentInfo.title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '_').substring(0, 80);
+
     btn.disabled = true;
     document.getElementById('dlSpin').style.display = 'block';
-    document.getElementById('dlLabel').textContent = 'Working…';
+    document.getElementById('dlLabel').textContent = 'Starting…';
     document.getElementById('result').style.display = 'none';
     document.getElementById('progress').style.display = 'block';
 
-    // Animated progress
-    let pct = 0;
     const bar = document.getElementById('progBar');
     const lbl = document.getElementById('progLabel');
-    const msgs = ['Connecting to source…', 'Fetching video stream…', 'Merging audio & video…', 'Almost ready…'];
-    let mi = 0;
 
+    let pct = 0;
+    const msgs = ['Connecting to source…', 'Fetching video stream…', 'Streaming to your device…', 'Downloading…'];
+    let mi = 0;
     const iv = setInterval(() => {
-      pct = Math.min(pct + Math.random() * 9, 88);
+      pct = Math.min(pct + Math.random() * 5, 90);
       bar.style.width = pct + '%';
-      if (Math.random() > 0.65 && mi < msgs.length - 1) lbl.textContent = msgs[++mi];
-    }, 450);
+      if (Math.random() > 0.7 && mi < msgs.length - 1) lbl.textContent = msgs[++mi];
+    }, 500);
 
     try {
       const r = await fetch('/api/download', {
@@ -828,26 +830,37 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, format_id: selectedFmt, title: currentInfo.title })
       });
-      const data = await r.json();
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: 'Download failed.' }));
+        throw new Error(err.error || 'Download failed.');
+      }
+
+      // Stream blob directly — browser saves file as it arrives
+      const blob = await r.blob();
 
       clearInterval(iv);
       bar.style.width = '100%';
-      lbl.textContent = 'Done!';
+      lbl.textContent = 'Done! Saving file…';
 
-      if (!r.ok) {
-        showErr(data.error || 'Download failed.');
-        document.getElementById('progress').style.display = 'none';
-      } else {
-        document.getElementById('resultName').textContent = data.filename;
-        const link = document.getElementById('dlLink');
-        link.href = data.url;
-        link.setAttribute('download', data.filename);
-        document.getElementById('result').style.display = 'block';
-        setTimeout(() => { document.getElementById('progress').style.display = 'none'; }, 700);
-      }
+      // Trigger browser save dialog immediately
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = safeTitle + '.' + ext;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      document.getElementById('resultName').textContent = safeTitle + '.' + ext;
+      document.getElementById('dlLink').style.display = 'none';
+      document.getElementById('result').style.display = 'block';
+      setTimeout(() => { document.getElementById('progress').style.display = 'none'; }, 800);
+
     } catch (e) {
       clearInterval(iv);
-      showErr('Network error during download.');
+      showErr(e.message || 'Download failed. Try again.');
       document.getElementById('progress').style.display = 'none';
     } finally {
       document.getElementById('dlSpin').style.display = 'none';
