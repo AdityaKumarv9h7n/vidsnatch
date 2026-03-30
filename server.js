@@ -7,6 +7,7 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
@@ -25,26 +26,22 @@ function detectPlatform(url) {
   return 'other';
 }
 
-function getCookiesArgs(platform) {
-  if (platform === 'youtube' && fs.existsSync(COOKIES_PATH)) {
-    return ['--cookies', COOKIES_PATH];
-  }
-  return [];
-}
-
 // ── GET VIDEO INFO ──
 app.post('/api/info', (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
+
+  // Only use cookies for YouTube
   const cookiesFlag = (platform === 'youtube' && fs.existsSync(COOKIES_PATH))
     ? `--cookies ${COOKIES_PATH}` : '';
+
   const extraArgs = platform === 'youtube'
     ? '--extractor-args "youtube:player_client=android,web"' : '';
 
   const cmd = `yt-dlp --dump-json --no-playlist ${cookiesFlag} ${extraArgs} "${url}"`;
-  console.log(`[INFO] ${platform}: ${url}`);
+  console.log(`[INFO] ${platform}: ${cmd}`);
 
   exec(cmd, { timeout: 60000 }, (err, stdout, stderr) => {
     if (err) {
@@ -75,9 +72,13 @@ app.post('/api/info', (req, res) => {
       });
 
       res.json({
-        title: info.title, thumbnail: info.thumbnail, duration: info.duration,
-        uploader: info.uploader || info.channel || '', platform,
-        formats: smartFormats, webpage_url: info.webpage_url || url
+        title: info.title,
+        thumbnail: info.thumbnail,
+        duration: info.duration,
+        uploader: info.uploader || info.channel || '',
+        platform,
+        formats: smartFormats,
+        webpage_url: info.webpage_url || url
       });
     } catch (e) {
       res.status(500).json({ error: 'Failed to parse video info.' });
@@ -85,9 +86,7 @@ app.post('/api/info', (req, res) => {
   });
 });
 
-// ── STREAM DOWNLOAD DIRECTLY TO BROWSER ──
-// Instead of saving to disk first, we pipe yt-dlp stdout straight to the response.
-// This means the browser starts receiving the file immediately — no timeout waiting.
+// ── DOWNLOAD — stream yt-dlp output directly to browser ──
 app.post('/api/download', (req, res) => {
   const { url, format_id, title } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -96,60 +95,56 @@ app.post('/api/download', (req, res) => {
   const safeTitle = (title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '_').substring(0, 80);
   const ext = format_id === 'audio' ? 'mp3' : 'mp4';
 
+  // Build format selector
   let formatArg;
   if (!format_id || format_id === 'best') {
-    // For platforms like Twitter that have combined streams, 'best' is instant
-    formatArg = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'];
+    // best[ext=mp4] picks a SINGLE combined stream — no merging needed, very fast
+    formatArg = ['-f', 'best[ext=mp4]/best'];
   } else if (format_id === 'audio') {
     formatArg = ['-f', 'bestaudio[ext=m4a]/bestaudio'];
   } else {
     const height = format_id.replace('p', '');
-    formatArg = ['-f', `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${height}]/best`];
+    formatArg = ['-f', `best[height<=${height}][ext=mp4]/best[height<=${height}]/best`];
   }
 
-  const cookiesArgs = getCookiesArgs(platform);
+  // Only cookies for YouTube
+  const cookiesArgs = (platform === 'youtube' && fs.existsSync(COOKIES_PATH))
+    ? ['--cookies', COOKIES_PATH] : [];
+
   const extraArgs = platform === 'youtube'
     ? ['--extractor-args', 'youtube:player_client=android,web'] : [];
 
-  // Key fix: output to stdout with -o - so we can pipe directly to browser
+  // -o - streams to stdout → we pipe directly to browser (no disk, no timeout)
   const args = [
     ...formatArg,
     '--no-playlist',
     ...cookiesArgs,
     ...extraArgs,
-    '-o', '-',   // ← output to stdout, stream directly
+    '-o', '-',
     url
   ];
 
-  console.log(`[DOWNLOAD] ${platform} streaming: ${args.join(' ')}`);
+  console.log(`[DOWNLOAD] ${platform}:`, args.join(' '));
 
-  // Set headers so browser starts downloading immediately
+  // Send headers immediately so browser starts saving right away
   res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.${ext}"`);
   res.setHeader('Content-Type', ext === 'mp3' ? 'audio/mpeg' : 'video/mp4');
   res.setHeader('Transfer-Encoding', 'chunked');
 
   const proc = spawn('yt-dlp', args);
 
-  // Pipe yt-dlp output straight to browser response — instant start
+  // Pipe yt-dlp → browser directly, bytes flow as soon as yt-dlp fetches them
   proc.stdout.pipe(res);
 
-  let errLog = '';
-  proc.stderr.on('data', d => {
-    errLog += d.toString();
-    process.stderr.write(d);
-  });
+  proc.stderr.on('data', d => process.stderr.write(d));
 
   proc.on('close', code => {
-    console.log(`[DOWNLOAD] done, code=${code}`);
-    if (code !== 0 && !res.headersSent) {
-      res.status(500).json({ error: 'Download failed.' });
-    }
+    console.log(`[DOWNLOAD] exit code ${code}`);
+    if (!res.writableEnded) res.end();
   });
 
-  // If client disconnects, kill yt-dlp
-  req.on('close', () => {
-    proc.kill('SIGTERM');
-  });
+  // Kill yt-dlp if user cancels
+  req.on('close', () => proc.kill('SIGTERM'));
 });
 
 const PORT = process.env.PORT || 3000;
