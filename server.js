@@ -14,6 +14,10 @@ if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR);
 
 app.use('/downloads', express.static(DOWNLOAD_DIR));
 
+// ── Cookies path (set via Render Secret Files) ──
+const COOKIES_PATH = '/etc/secrets/cookies.txt';
+const COOKIES_FLAG = fs.existsSync(COOKIES_PATH) ? `--cookies ${COOKIES_PATH}` : '';
+
 function detectPlatform(url) {
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
   if (url.includes('facebook.com') || url.includes('fb.watch') || url.includes('fb.com')) return 'facebook';
@@ -24,6 +28,7 @@ function detectPlatform(url) {
   return 'other';
 }
 
+// ── GET VIDEO INFO ──
 app.post('/api/info', async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -33,7 +38,10 @@ app.post('/api/info', async (req, res) => {
     ? '--extractor-args "youtube:player_client=android,web"'
     : '';
 
-  const cmd = `yt-dlp --dump-json --no-playlist ${extraArgs} "${url}"`;
+  // COOKIES_FLAG added here ✅
+  const cmd = `yt-dlp --dump-json --no-playlist ${COOKIES_FLAG} ${extraArgs} "${url}"`;
+
+  console.log('Info cmd:', cmd);
 
   exec(cmd, { timeout: 45000 }, (err, stdout, stderr) => {
     if (err) {
@@ -106,6 +114,7 @@ app.post('/api/info', async (req, res) => {
   });
 });
 
+// ── DOWNLOAD VIDEO ──
 app.post('/api/download', (req, res) => {
   const { url, format_id, title } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -116,7 +125,6 @@ app.post('/api/download', (req, res) => {
   const outputTemplate = path.join(DOWNLOAD_DIR, `${filename}.%(ext)s`);
 
   let formatArg;
-
   if (!format_id || format_id === 'best') {
     formatArg = ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'];
   } else if (format_id === 'audio') {
@@ -133,10 +141,14 @@ app.post('/api/download', (req, res) => {
     ? ['--extractor-args', 'youtube:player_client=android,web']
     : [];
 
+  // COOKIES_FLAG added here ✅
+  const cookiesArgs = fs.existsSync(COOKIES_PATH) ? ['--cookies', COOKIES_PATH] : [];
+
   const args = [
     ...formatArg,
     '--merge-output-format', 'mp4',
     '--no-playlist',
+    ...cookiesArgs,
     ...extraArgs,
     '-o', outputTemplate,
     url
@@ -173,13 +185,8 @@ app.post('/api/download', (req, res) => {
   });
 });
 
-const COOKIES = fs.existsSync('/etc/secrets/cookies.txt')
-  ? '--cookies /etc/secrets/cookies.txt'
-  : '';
-
-const cmd = `yt-dlp --dump-json --no-playlist ${COOKIES} ${extraArgs} "${url}"`;
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`VidSnatch running at http://localhost:${PORT}`);
+  console.log(`Cookies: ${COOKIES_FLAG || 'NOT found — YouTube may be blocked'}`);
 });
