@@ -11,12 +11,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR);
-
 app.use('/downloads', express.static(DOWNLOAD_DIR));
 
-// ── Cookies path (set via Render Secret Files) ──
 const COOKIES_PATH = '/etc/secrets/cookies.txt';
-const COOKIES_FLAG = fs.existsSync(COOKIES_PATH) ? `--cookies ${COOKIES_PATH}` : '';
 
 function detectPlatform(url) {
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
@@ -28,33 +25,51 @@ function detectPlatform(url) {
   return 'other';
 }
 
+// Only apply cookies for YouTube, not other platforms
+function getCookiesFlag(platform) {
+  if (platform === 'youtube' && fs.existsSync(COOKIES_PATH)) {
+    return `--cookies ${COOKIES_PATH}`;
+  }
+  return '';
+}
+
+function getCookiesArgs(platform) {
+  if (platform === 'youtube' && fs.existsSync(COOKIES_PATH)) {
+    return ['--cookies', COOKIES_PATH];
+  }
+  return [];
+}
+
 // ── GET VIDEO INFO ──
-app.post('/api/info', async (req, res) => {
+app.post('/api/info', (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   const platform = detectPlatform(url);
+
   const extraArgs = platform === 'youtube'
     ? '--extractor-args "youtube:player_client=android,web"'
     : '';
 
-  // COOKIES_FLAG added here ✅
-  const cmd = `yt-dlp --dump-json --no-playlist ${COOKIES_FLAG} ${extraArgs} "${url}"`;
+  // Cookies only for YouTube ✅
+  const cookiesFlag = getCookiesFlag(platform);
 
-  console.log('Info cmd:', cmd);
+  const cmd = `yt-dlp --dump-json --no-playlist ${cookiesFlag} ${extraArgs} "${url}"`;
 
-  exec(cmd, { timeout: 45000 }, (err, stdout, stderr) => {
+  console.log(`[INFO] platform=${platform} cmd=${cmd}`);
+
+  exec(cmd, { timeout: 60000 }, (err, stdout, stderr) => {
     if (err) {
-      console.error('Info error:', stderr);
+      console.error('[INFO ERROR]', stderr);
       return res.status(400).json({
-        error: 'Could not fetch video info. The video may be private, age-restricted, or unavailable.'
+        error: 'Could not fetch video info. The video may be private or unavailable.'
       });
     }
 
     try {
       const firstLine = stdout.trim().split('\n')[0];
       const info = JSON.parse(firstLine);
-      const formats = (info.formats || []);
+      const formats = info.formats || [];
 
       const resolutions = [2160, 1440, 1080, 720, 480, 360, 240, 144];
       const smartFormats = [];
@@ -63,23 +78,20 @@ app.post('/api/info', async (req, res) => {
         format_id: 'best',
         label: '⭐ Best Quality (Auto)',
         ext: 'mp4',
-        filesize: null,
-        isAuto: true
+        filesize: null
       });
 
-      resolutions.forEach(res => {
-        const videoFmt = formats
-          .filter(f => f.height === res && f.vcodec && f.vcodec !== 'none')
+      resolutions.forEach(r => {
+        const vf = formats
+          .filter(f => f.height === r && f.vcodec && f.vcodec !== 'none')
           .sort((a, b) => (b.filesize || 0) - (a.filesize || 0))[0];
-
-        if (videoFmt) {
-          const size = videoFmt.filesize || videoFmt.filesize_approx;
+        if (vf) {
           smartFormats.push({
-            format_id: `${res}p`,
-            label: `${res}p`,
+            format_id: `${r}p`,
+            label: `${r}p`,
             ext: 'mp4',
-            filesize: size,
-            height: res
+            filesize: vf.filesize || vf.filesize_approx || null,
+            height: r
           });
         }
       });
@@ -93,8 +105,7 @@ app.post('/api/info', async (req, res) => {
           format_id: 'audio',
           label: '🎵 Audio Only (MP3)',
           ext: 'mp3',
-          filesize: audioBest.filesize || null,
-          isAudio: true
+          filesize: audioBest.filesize || null
         });
       }
 
@@ -107,9 +118,10 @@ app.post('/api/info', async (req, res) => {
         formats: smartFormats,
         webpage_url: info.webpage_url || url
       });
+
     } catch (e) {
-      console.error('Parse error:', e);
-      res.status(500).json({ error: 'Failed to parse video info' });
+      console.error('[PARSE ERROR]', e);
+      res.status(500).json({ error: 'Failed to parse video info.' });
     }
   });
 });
@@ -137,12 +149,13 @@ app.post('/api/download', (req, res) => {
     ];
   }
 
+  // YouTube extra args
   const extraArgs = platform === 'youtube'
     ? ['--extractor-args', 'youtube:player_client=android,web']
     : [];
 
-  // COOKIES_FLAG added here ✅
-  const cookiesArgs = fs.existsSync(COOKIES_PATH) ? ['--cookies', COOKIES_PATH] : [];
+  // Cookies only for YouTube ✅
+  const cookiesArgs = getCookiesArgs(platform);
 
   const args = [
     ...formatArg,
@@ -154,22 +167,21 @@ app.post('/api/download', (req, res) => {
     url
   ];
 
-  console.log('Running yt-dlp:', args.join(' '));
+  console.log(`[DOWNLOAD] platform=${platform} args=${args.join(' ')}`);
   const proc = spawn('yt-dlp', args);
   let log = '';
 
   proc.stdout.on('data', d => { log += d.toString(); process.stdout.write(d); });
   proc.stderr.on('data', d => { log += d.toString(); process.stderr.write(d); });
 
-  proc.on('close', (code) => {
+  proc.on('close', code => {
     if (code !== 0) {
+      console.error('[DOWNLOAD FAILED]', log);
       return res.status(500).json({ error: 'Download failed. The video may be private or unavailable.' });
     }
 
     const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(filename));
-    if (files.length === 0) {
-      return res.status(500).json({ error: 'Downloaded file not found on server.' });
-    }
+    if (!files.length) return res.status(500).json({ error: 'File not found after download.' });
 
     const downloadedFile = files[0];
     res.json({
@@ -188,5 +200,5 @@ app.post('/api/download', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`VidSnatch running at http://localhost:${PORT}`);
-  console.log(`Cookies: ${COOKIES_FLAG || 'NOT found — YouTube may be blocked'}`);
+  console.log(`YouTube cookies: ${fs.existsSync(COOKIES_PATH) ? '✅ FOUND' : '❌ NOT FOUND'}`);
 });
